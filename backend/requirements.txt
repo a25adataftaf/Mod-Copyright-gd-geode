@@ -1,0 +1,14 @@
+# Pinned and verified runtime dependencies (checked 2026-10-27)
+fastapi==0.162.0
+uvicorn==0.54.0
+sqlalchemy[asyncio]==2.1.6
+greenlet==3.5.6
+alembic==1.20.1
+aiosqlite==0.22.1
+pydantic==2.14.1
+httpx==0.28.1
+python-multipart==0.0.32
+
+# Testing & QA dependencies
+pytest==9.1.1
+pytest-asyncio==1.4.1

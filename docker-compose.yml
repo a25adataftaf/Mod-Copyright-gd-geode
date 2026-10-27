@@ -1,0 +1,38 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mrc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-mrc_rights}
+    volumes:
+      - mrc_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-mrc} -d $${POSTGRES_DB:-mrc_rights}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mrc-backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    environment:
+      MRC_ENVIRONMENT: production
+      MRC_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-mrc}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-mrc_rights}
+      MRC_ADMIN_API_TOKEN: ${MRC_ADMIN_API_TOKEN:?Set MRC_ADMIN_API_TOKEN in .env}
+      MRC_AI_PROVIDER: ${MRC_AI_PROVIDER:-none}
+      MRC_AI_API_KEY: ${MRC_AI_API_KEY:-}
+      MRC_AI_MODEL: ${MRC_AI_MODEL:-}
+      MRC_AI_DAILY_BUDGET_CALLS: ${MRC_AI_DAILY_BUDGET_CALLS:-250}
+      MRC_ENABLE_EXTERNAL_FETCH: ${MRC_ENABLE_EXTERNAL_FETCH:-true}
+
+volumes:
+  mrc_pgdata:

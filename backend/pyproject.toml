@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=75.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "music-rights-checker-backend"
+version = "0.1.0"
+description = "Centralized API and AI-assisted music rights research service for the Geometry Dash Music Rights Checker Geode mod."
+readme = "../README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+dependencies = [
+    "fastapi>=0.150.0,<1.0.0",
+    "uvicorn>=0.40.0,<1.0.0",
+    "sqlalchemy[asyncio]>=2.0.36,<3.0.0",
+    "greenlet>=3.1.0,<4.0.0",
+    "alembic>=1.14.0,<2.0.0",
+    "aiosqlite>=0.20.0,<1.0.0",
+    "pydantic>=2.10.0,<3.0.0",
+    "httpx>=0.27.0,<1.0.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["."]
