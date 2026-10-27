@@ -1,0 +1,95 @@
+{
+  "geode": "5.10.1",
+  "gd": {
+    "win": "2.2081",
+    "mac": "2.2081",
+    "android": "2.2081",
+    "ios": "2.2081"
+  },
+  "id": "mrc.music_rights_checker",
+  "name": "Music Rights Checker",
+  "version": "v0.1.0",
+  "developers": [
+    "Music Rights Checker Contributors"
+  ],
+  "description": "Investigate song copyright, monetization permissions, and platform music policies with Jukebox integration.",
+  "repository": "https://github.com/music-rights-checker/music-rights-checker",
+  "links": {
+    "source": "https://github.com/music-rights-checker/music-rights-checker"
+  },
+  "issues": {
+    "info": "Report bugs, inaccurate licence classifications, or compatibility issues on GitHub Issues. Include the song ID, source type, and Geode version.",
+    "url": "https://github.com/music-rights-checker/music-rights-checker/issues"
+  },
+  "tags": [
+    "music",
+    "online",
+    "utility",
+    "interface"
+  ],
+  "dependencies": {
+    "geode.node-ids": ">=v1.23.0",
+    "fleym.nongd": {
+      "version": ">=v3.8.0",
+      "required": false
+    }
+  },
+  "settings": {
+    "general-section": {
+      "name": "General",
+      "type": "title"
+    },
+    "enabled": {
+      "name": "Enable Music Rights Checker",
+      "description": "Show music rights indicators on song widgets and Jukebox menus.",
+      "type": "bool",
+      "default": true
+    },
+    "backend-url": {
+      "name": "Backend API URL",
+      "description": "Base URL for the centralized Music Rights Checker v1 API (must use https://, or http://127.0.0.1 for local development).",
+      "type": "string",
+      "default": "https://api.musicrightschecker.org/api/v1"
+    },
+    "request-timeout-seconds": {
+      "name": "Request timeout (s)",
+      "description": "Maximum seconds to wait for backend API responses before falling back to local cache.",
+      "type": "int",
+      "default": 15,
+      "min": 5,
+      "max": 60
+    },
+    "auto-check-songs": {
+      "name": "Auto-check active songs",
+      "description": "Automatically query cached or live rights status when opening a level page.",
+      "type": "bool",
+      "default": true
+    },
+    "jukebox-section": {
+      "name": "Jukebox & Interface",
+      "type": "title"
+    },
+    "show-in-jukebox-list": {
+      "name": "Show badges in Jukebox NONG list",
+      "description": "Add a non-invasive rights-check button to songs inside Jukebox's NONG management popup.",
+      "type": "bool",
+      "default": true
+    },
+    "show-in-compact-cells": {
+      "name": "Show in compact song cells",
+      "description": "Display rights badges inside compact list cells in addition to full level song widgets.",
+      "type": "bool",
+      "default": false
+    },
+    "privacy-section": {
+      "name": "Privacy",
+      "type": "title"
+    },
+    "share-local-file-hash": {
+      "name": "Send SHA-256 hash for local NONG files",
+      "description": "When enabled, computes a local SHA-256 digest of locally imported NONG files to help match existing shared licence records. Local audio files themselves are NEVER uploaded.",
+      "type": "bool",
+      "default": false
+    }
+  }
+}
