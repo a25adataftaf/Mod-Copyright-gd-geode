@@ -1,0 +1,68 @@
+name: Build Geode Mod
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-platform:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - config: Release
+            os: ubuntu-latest
+            target: Android64
+          - config: Release
+            os: ubuntu-latest
+            target: Android32
+          - config: RelWithDebInfo
+            os: windows-2022
+            target: Win64
+          - config: RelWithDebInfo
+            os: macos-latest
+            target: MacOS
+          - config: RelWithDebInfo
+            os: macos-latest
+            target: iOS
+
+    name: ${{ matrix.target }} (${{ matrix.config }})
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build target for ${{ matrix.target }}
+        uses: geode-sdk/build-geode-mod@main
+        with:
+          build-type: ${{ matrix.config }}
+          sdk: "given"
+          target: ${{ matrix.target }}
+          combine: true
+
+  package-geode:
+    needs: build-platform
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Combine platform binaries into .geode package
+        id: combine
+        uses: geode-sdk/build-geode-mod/combine@main
+        with:
+          zstd: true
+          optimize-pngs: true
+
+      - name: Upload combined .geode artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mrc.music_rights_checker.geode
+          path: ${{ steps.combine.outputs.build-output }}
+          if-no-files-found: error

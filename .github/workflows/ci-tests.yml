@@ -1,0 +1,92 @@
+name: CI Tests & Verification
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cpp-core-tests:
+    name: C++23 Core & Sanitizer Suite
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Compile and run C++23 core tests (Release + Warnings-as-Errors)
+        run: |
+          g++ -std=c++23 -Wall -Wextra -Wpedantic -Werror -O2 \
+            -Iinclude \
+            src/core/Types.cpp \
+            src/core/JsonCodec.cpp \
+            src/core/LocalCache.cpp \
+            src/core/AttributionAndSafety.cpp \
+            tests/cpp/test_mrc_core.cpp \
+            -o /tmp/mrc_core_tests
+          /tmp/mrc_core_tests
+
+      - name: Compile and run C++23 core tests with ASan + UBSan
+        run: |
+          g++ -std=c++23 -Wall -Wextra -Wpedantic -Werror -O1 -g \
+            -fsanitize=address,undefined -fno-omit-frame-pointer \
+            -Iinclude \
+            src/core/Types.cpp \
+            src/core/JsonCodec.cpp \
+            src/core/LocalCache.cpp \
+            src/core/AttributionAndSafety.cpp \
+            tests/cpp/test_mrc_core.cpp \
+            -o /tmp/mrc_core_tests_asan
+          /tmp/mrc_core_tests_asan
+
+  backend-tests:
+    name: FastAPI Backend, Migrations & Security Suite
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install pinned backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r backend/requirements.txt
+
+      - name: Verify reversible Alembic database migrations
+        working-directory: backend
+        env:
+          MRC_DATABASE_URL: "sqlite+aiosqlite:////tmp/ci_migration_verify.db"
+        run: |
+          PYTHONPATH=.. alembic upgrade head
+          PYTHONPATH=.. alembic downgrade base
+          PYTHONPATH=.. alembic upgrade head
+
+      - name: Run pytest suite
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          pytest backend/tests -v
+
+  manifest-and-backup-check:
+    name: Manifest Sync & Backup Integrity Drill
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Validate mod.json, backend version, and CHANGELOG parity
+        run: |
+          python scripts/check_upstream_compatibility.py --offline-manifest-check
