@@ -11,7 +11,7 @@ _Last verified: 2026-10-27_
 | **Geometry Dash (Android64 / Android32)** | `2.2081` | `2.2081` | Built via Geode Android NDK toolchain |
 | **Geometry Dash (iOS arm64)** | `2.2081` | `2.2081` | Built via Geode iOS SDK toolchain |
 | **Geometry Dash `2.2091` (Oct 2026)** | **Not targeted yet** | Unsupported until Geode v6 | Upstream Geode v5 does not target `2.2091`; do **not** change `mod.json` until Geode v6 & Jukebox publish verified `2.2091` releases |
-| **Geode SDK (`geode-sdk/geode`)** | `5.10.1` | `5.10.1` – `5.11.2` | Same Geode v5 ABI family; verified headers: `Popup.hpp`, `web.hpp`, `async.hpp`, `general.hpp`, `MDTextArea.hpp`, `TextInput.hpp` |
+| **Geode SDK (`geode-sdk/geode`)** | `5.10.1` | `5.10.1` – `5.11.2` | Same Geode v5 ABI family; CI pins `geode-sdk/bindings` to verified `2.2081` ref `1605f500d053` prior to Geode v6 / `2.2091` codegen refactor |
 | **Jukebox (`fleym.nongd`)** | `>=v3.8.0` (`required: false`) | `v3.8.0` (manifest schema v1) | Integrates via `<jukebox_save_dir>/manifest/<adjustedId>.json` and public `NongList` Node IDs |
 | **Node IDs (`geode.node-ids`)** | `>=v1.23.0` (`required: true`) | `v1.23.0+` | Required for stable `CustomSongWidget` and popup layouts |
 | **C++ Toolchain** | C++23 | GCC 14.2+, Clang 18+, MSVC 19.38+ | Portable core verified locally on `g++ 14.2.0` (`-Wall -Wextra -Wpedantic -Werror` + ASan/UBSan) |
