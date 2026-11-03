@@ -10,16 +10,17 @@
   "name": "Music Rights Checker",
   "version": "v0.1.0",
   "developers": [
+    "a25adataftaf",
     "Music Rights Checker Contributors"
   ],
   "description": "Investigate song copyright, monetization permissions, and platform music policies with Jukebox integration.",
-  "repository": "https://github.com/music-rights-checker/music-rights-checker",
+  "repository": "https://github.com/a25adataftaf/Mod-Copyright-gd-geode",
   "links": {
-    "source": "https://github.com/music-rights-checker/music-rights-checker"
+    "source": "https://github.com/a25adataftaf/Mod-Copyright-gd-geode"
   },
   "issues": {
     "info": "Report bugs, inaccurate licence classifications, or compatibility issues on GitHub Issues. Include the song ID, source type, and Geode version.",
-    "url": "https://github.com/music-rights-checker/music-rights-checker/issues"
+    "url": "https://github.com/a25adataftaf/Mod-Copyright-gd-geode/issues"
   },
   "tags": [
     "music",

@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Optional authenticated Newgrounds API / creator-verified OAuth evidence connector for songs whose public pages are blocked by anti-bot challenges on datacenter IPs.
 - Geode v6 / Geometry Dash `2.2091` target verification once Geode v6 reaches stable release.
 
-## [0.1.0] - 2026-10-27
+## [0.1.0] - 2026-11-03
 
 ### Added
 - **Geode C++23 Mod (`mrc.music_rights_checker`)**:
