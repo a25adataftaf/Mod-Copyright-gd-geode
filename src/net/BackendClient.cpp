@@ -1,10 +1,12 @@
 #include "BackendClient.hpp"
 
 #include <chrono>
+#include <cstdint>
 #include <ctime>
 #include <filesystem>
 #include <fstream>
 
+#include <arc/time/Sleep.hpp>
 #include <Geode/loader/Log.hpp>
 #include <Geode/loader/Mod.hpp>
 
@@ -165,10 +167,10 @@ arc::Future<ClientResolveOutcome> performResolveCoroutine(
     // Handle 202 Accepted asynchronous job polling with bounded exponential backoff
     if (parsedRes->resolutionStatus == "processing" && !parsedRes->jobId.empty()) {
         const std::string jobEndpoint = stripTrailingSlash(baseUrl) + "/jobs/" + parsedRes->jobId;
-        int delayMs = 900;
+        std::uint64_t delayMs = 900;
         for (int attempt = 0; attempt < 6; ++attempt) {
             co_await arc::sleep(asp::Duration::fromMillis(delayMs));
-            delayMs = std::min(delayMs * 2, 4000);
+            delayMs = std::min<std::uint64_t>(delayMs * 2, 4000);
 
             geode::utils::web::WebRequest pollReq;
             pollReq.timeout(std::chrono::seconds(timeoutSec))

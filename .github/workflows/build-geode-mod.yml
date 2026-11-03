@@ -41,7 +41,7 @@ jobs:
       - name: Build target for ${{ matrix.target }}
         uses: geode-sdk/build-geode-mod@main
         with:
-          build-type: ${{ matrix.config }}
+          build-config: ${{ matrix.config }}
           sdk: "given"
           target: ${{ matrix.target }}
           combine: true
