@@ -66,4 +66,10 @@ endif()
 
 add_subdirectory($ENV{GEODE_SDK} ${CMAKE_CURRENT_BINARY_DIR}/geode)
 
+# Workaround for upstream geode-sdk/bindings iOS standalone FMOD functions (Oct 2026+)
+# when GeodeBindings builds without precompiled Bindings.hpp on iOS.
+if(("${CMAKE_SYSTEM_NAME}" STREQUAL "iOS" OR IOS) AND TARGET GeodeBindings)
+    target_compile_options(GeodeBindings PRIVATE -include fmod.hpp)
+endif()
+
 setup_geode_mod(${PROJECT_NAME})
