@@ -99,7 +99,7 @@ async def test_health_and_root_endpoints(tmp_path: Path) -> None:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             root_resp = await client.get("/")
             assert root_resp.status_code == 200
-            assert root_resp.json()["version"] == "0.1.0"
+            assert root_resp.json()["version"] == "0.1.1"
 
             health_resp = await client.get("/api/v1/health")
             assert health_resp.status_code == 200

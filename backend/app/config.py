@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
+from backend.app import __version__
+
 
 def _env_bool(name: str, default: bool) -> bool:
     raw = os.getenv(name)
@@ -40,7 +42,7 @@ class Settings:
     """Immutable application settings."""
 
     app_name: str = "Music Rights Checker API"
-    app_version: str = "0.1.0"
+    app_version: str = __version__
     api_prefix: str = "/api/v1"
     environment: str = "development"
     database_url: str = "sqlite+aiosqlite:///./data/mrc.db"

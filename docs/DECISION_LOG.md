@@ -66,3 +66,12 @@ This log documents consequential engineering, security, and legal-modelling deci
 - **Context**: During backend integration testing on SQLAlchemy `2.1.6` (`aiosqlite`), mutating ORM relationship collections (`song.platform_permissions.clear()`) after `session.flush()` triggered synchronous lazy loading (`sqlalchemy.exc.MissingGreenlet`).
 - **Decision**: Replace child rows (`PlatformPermissionRecord`, `EvidenceRecord`) using explicit async SQL `delete(...)` + `session.add(...)` + `session.expire_all()`, followed by explicit `selectinload(...)` reload.
 - **Consequences**: Deterministic async database behaviour across both SQLite and PostgreSQL `asyncpg` with zero implicit lazy-load hazards.
+
+---
+
+## ADR-008: Hybrid Client-Direct Inspector + Optional Centralized AI Backend (`v0.1.1`)
+- **Date**: 2026-11-03
+- **Status**: Accepted
+- **Context**: In-game testing of `v0.1.0` showed that players installing `.geode` before a public cloud backend is hosted hit `"Rights Data Unavailable"` against the unhosted default URL. Meanwhile, residential player connections can often read public Newgrounds/NCS HTML licence blocks directly without any private credentials.
+- **Decision**: Add `mrc::DirectEvaluator` in pure C++23 as the default zero-config standalone inspector (and automatic fallback when a configured backend is unreachable), while keeping AI synthesis, shared PostgreSQL deduplication, and manual overrides in `backend/` (with `render.yaml` provided for 1-click cloud hosting).
+- **Consequences**: Immediate out-of-the-box functionality for every player with zero embedded secrets and strict preservation of conservative legal guardrails (`unknown` / `review_required` whenever evidence is blocked or ambiguous).

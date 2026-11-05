@@ -11,13 +11,14 @@ endif()
 
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 
-project(MusicRightsChecker VERSION 0.1.0 LANGUAGES CXX)
+project(MusicRightsChecker VERSION 0.1.1 LANGUAGES CXX)
 
 set(MRC_CORE_SOURCES
     src/core/Types.cpp
     src/core/JsonCodec.cpp
     src/core/LocalCache.cpp
     src/core/AttributionAndSafety.cpp
+    src/core/DirectEvaluator.cpp
 )
 
 option(MRC_BUILD_HOST_TESTS_ONLY "Build only standalone C++23 core unit tests without Geode SDK" OFF)

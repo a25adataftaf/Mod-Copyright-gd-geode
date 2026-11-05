@@ -464,9 +464,15 @@ void RightsDetailPopup::onRefresh(cocos2d::CCObject*) {
 void RightsDetailPopup::onOpenReportModal(cocos2d::CCObject*) {
     if (!m_record.has_value() || m_record->id.empty()) {
         geode::Notification::create(
-            "Resolve the song against the backend first before submitting a report.",
+            "Resolve the song first before submitting a report.",
             geode::NotificationIcon::Warning
         )->show();
+        return;
+    }
+    if (m_record->id.starts_with("direct:")) {
+        geode::utils::web::openLinkInBrowser(
+            "https://github.com/a25adataftaf/Mod-Copyright-gd-geode/issues"
+        );
         return;
     }
     if (auto* modal = ReportIssuePopup::create(m_record->id, m_record->title)) {

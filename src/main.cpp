@@ -11,7 +11,7 @@ using namespace geode::prelude;
 $on_mod(Loaded) {
     mrc::net::BackendClient::get().initializeCache();
     log::info(
-        "Music Rights Checker v0.1.0 initialized (Jukebox loaded: {}, version: {}).",
+        "Music Rights Checker v0.1.1 initialized (Jukebox loaded: {}, version: {}).",
         mrc::jb::JukeboxIntegration::isJukeboxLoaded(),
         mrc::jb::JukeboxIntegration::jukeboxVersionString()
     );

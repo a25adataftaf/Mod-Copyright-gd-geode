@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "music-rights-checker-backend"
-version = "0.1.0"
+version = "0.1.1"
 description = "Centralized API and AI-assisted music rights research service for the Geometry Dash Music Rights Checker Geode mod."
 readme = "../README.md"
 requires-python = ">=3.12"

@@ -8,7 +8,7 @@
   },
   "id": "mrc.music_rights_checker",
   "name": "Music Rights Checker",
-  "version": "v0.1.0",
+  "version": "v0.1.1",
   "developers": [
     "a25adataftaf",
     "Music Rights Checker Contributors"
@@ -46,23 +46,29 @@
       "type": "bool",
       "default": true
     },
+    "direct-fallback-enabled": {
+      "name": "Standalone direct source inspector",
+      "description": "Inspect public Newgrounds/NCS licence pages and built-in platform policy rules directly from the game when no centralized backend URL is configured or reachable.",
+      "type": "bool",
+      "default": true
+    },
     "backend-url": {
-      "name": "Backend API URL",
-      "description": "Base URL for the centralized Music Rights Checker v1 API (must use https://, or http://127.0.0.1 for local development).",
+      "name": "Backend API URL (optional)",
+      "description": "Optional centralized Music Rights Checker v1 API URL (https://... or http://127.0.0.1:8000/api/v1). Leave empty to use built-in direct source inspection.",
       "type": "string",
-      "default": "https://api.musicrightschecker.org/api/v1"
+      "default": ""
     },
     "request-timeout-seconds": {
       "name": "Request timeout (s)",
-      "description": "Maximum seconds to wait for backend API responses before falling back to local cache.",
+      "description": "Maximum seconds to wait for HTTP responses before falling back to local cache or built-in rules.",
       "type": "int",
-      "default": 15,
+      "default": 12,
       "min": 5,
       "max": 60
     },
     "auto-check-songs": {
       "name": "Auto-check active songs",
-      "description": "Automatically query cached or live rights status when opening a level page.",
+      "description": "Automatically evaluate cached or live rights status when opening a level page.",
       "type": "bool",
       "default": true
     },
@@ -88,7 +94,7 @@
     },
     "share-local-file-hash": {
       "name": "Send SHA-256 hash for local NONG files",
-      "description": "When enabled, computes a local SHA-256 digest of locally imported NONG files to help match existing shared licence records. Local audio files themselves are NEVER uploaded.",
+      "description": "When enabled and a centralized Backend API URL is configured, computes a local SHA-256 digest of locally imported NONG files to match shared records. Local audio files themselves are NEVER uploaded.",
       "type": "bool",
       "default": false
     }

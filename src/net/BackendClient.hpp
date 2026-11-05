@@ -34,6 +34,7 @@ public:
     [[nodiscard]] std::string configuredBaseUrl() const;
     [[nodiscard]] int configuredTimeoutSeconds() const;
     [[nodiscard]] bool isModEnabled() const;
+    [[nodiscard]] bool isDirectFallbackEnabled() const;
     [[nodiscard]] bool shouldAutoCheckSongs() const;
     [[nodiscard]] bool shouldShareLocalFileHash() const;
 

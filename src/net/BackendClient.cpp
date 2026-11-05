@@ -1,16 +1,20 @@
 #include "BackendClient.hpp"
 
+#include <cctype>
 #include <chrono>
 #include <cstdint>
 #include <ctime>
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
+#include <sstream>
 
 #include <arc/time/Sleep.hpp>
 #include <Geode/loader/Log.hpp>
 #include <Geode/loader/Mod.hpp>
 
 #include <mrc/AttributionAndSafety.hpp>
+#include <mrc/DirectEvaluator.hpp>
 #include <mrc/JsonCodec.hpp>
 
 namespace mrc::net {
@@ -23,11 +27,67 @@ std::int64_t currentUnixSeconds() noexcept {
                                          .count());
 }
 
+std::string currentIsoUtcString() {
+    const std::time_t now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+    std::tm utcTm{};
+#if defined(_WIN32)
+    gmtime_s(&utcTm, &now);
+#else
+    gmtime_r(&now, &utcTm);
+#endif
+    std::ostringstream oss;
+    oss << std::put_time(&utcTm, "%Y-%m-%dT%H:%M:%SZ");
+    return oss.str();
+}
+
 std::string stripTrailingSlash(std::string url) {
+    while (!url.empty() && std::isspace(static_cast<unsigned char>(url.back()))) {
+        url.pop_back();
+    }
+    while (!url.empty() && std::isspace(static_cast<unsigned char>(url.front()))) {
+        url.erase(url.begin());
+    }
     while (!url.empty() && url.back() == '/') {
         url.pop_back();
     }
     return url;
+}
+
+bool isUnconfiguredOrPlaceholderBackendUrl(std::string_view url) noexcept {
+    if (url.empty()) {
+        return true;
+    }
+    // Treat legacy v0.1.0 placeholder domain or .example domains as unconfigured standalone mode
+    if (url.find("api.musicrightschecker.org") != std::string_view::npos ||
+        url.find(".example") != std::string_view::npos) {
+        return true;
+    }
+    return false;
+}
+
+std::string buildNcsCandidateUrl(std::string_view title) {
+    std::string slug;
+    slug.reserve(title.size());
+    bool prevHyphen = false;
+    for (unsigned char c : title) {
+        if (std::isalnum(c)) {
+            slug.push_back(static_cast<char>(c));
+            prevHyphen = false;
+        } else if ((c == ' ' || c == '-' || c == '_') && !slug.empty() && !prevHyphen) {
+            slug.push_back('-');
+            prevHyphen = true;
+        }
+        if (slug.size() >= 64) {
+            break;
+        }
+    }
+    while (!slug.empty() && slug.back() == '-') {
+        slug.pop_back();
+    }
+    if (slug.empty()) {
+        return "";
+    }
+    return "https://ncs.io/" + slug;
 }
 
 std::string computeOptionalLocalSha256(const std::string& filePath) {
@@ -40,7 +100,6 @@ std::string computeOptionalLocalSha256(const std::string& filePath) {
         return "";
     }
     const auto fsize = std::filesystem::file_size(p, ec);
-    // Cap local hashing at 64 MiB to avoid excessive background disk reads
     if (ec || fsize == 0 || fsize > 64ULL * 1024ULL * 1024ULL) {
         return "";
     }
@@ -56,17 +115,59 @@ std::string computeOptionalLocalSha256(const std::string& filePath) {
     return sha256Hex(buf);
 }
 
+arc::Future<SongRightsRecord> inspectDirectlyCoroutine(
+    const SongQuery& query,
+    int timeoutSec
+) {
+    std::optional<DirectFetchedPage> fetchedPage;
+    std::string targetFetchUrl;
+
+    if (query.sourceType == SourceType::Newgrounds && query.gdSongId.has_value() && *query.gdSongId > 0) {
+        targetFetchUrl = "https://www.newgrounds.com/audio/listen/" + std::to_string(*query.gdSongId);
+    } else if (query.sourceType == SourceType::NcsLibrary) {
+        targetFetchUrl = buildNcsCandidateUrl(query.title);
+    }
+
+    if (!targetFetchUrl.empty() && isSafeBrowserUrl(targetFetchUrl)) {
+        geode::utils::web::WebRequest req;
+        req.timeout(std::chrono::seconds(std::clamp(timeoutSec, 5, 12)))
+            .userAgent("Mozilla/5.0 (compatible; MusicRightsChecker-Geode/0.1.1)")
+            .header("Accept", "text/html,application/xhtml+xml");
+
+        geode::utils::web::WebResponse resp = co_await req.get(targetFetchUrl);
+        DirectFetchedPage page;
+        page.url = targetFetchUrl;
+        page.httpStatus = resp.code();
+        if (resp.ok()) {
+            auto strRes = resp.string();
+            if (strRes.isOk()) {
+                std::string body = strRes.unwrap();
+                if (body.size() > 512ULL * 1024ULL) {
+                    body.resize(512ULL * 1024ULL);
+                }
+                page.rawBody = std::move(body);
+            }
+        }
+        fetchedPage = std::move(page);
+    }
+
+    co_return DirectEvaluator::evaluate(query, fetchedPage, currentIsoUtcString());
+}
+
 arc::Future<ClientResolveOutcome> performResolveCoroutine(
     SongQuery query,
     bool forceRefresh,
     bool computeLocalHash,
-    std::string baseUrl,
+    bool allowDirectFallback,
+    std::string rawBaseUrl,
     int timeoutSec,
     LocalRightsCache* cachePtr
 ) {
-    if (computeLocalHash && query.sourceType == SourceType::JukeboxLocal &&
+    const std::string baseUrl = stripTrailingSlash(std::move(rawBaseUrl));
+    const bool hasCustomBackend = !isUnconfiguredOrPlaceholderBackendUrl(baseUrl);
+
+    if (hasCustomBackend && computeLocalHash && query.sourceType == SourceType::JukeboxLocal &&
         query.audioSha256.empty() && !query.localFilePath.empty()) {
-        // Compute opt-in SHA-256 digest on Geode's background worker pool, never on the main thread
         query.audioSha256 = co_await geode::async::runtime().spawnBlocking<std::string>(
             [path = query.localFilePath]() { return computeOptionalLocalSha256(path); }
         );
@@ -81,6 +182,38 @@ arc::Future<ClientResolveOutcome> performResolveCoroutine(
             .ok = true,
             .servedFromOfflineFallback = false,
             .record = cachedLookup->record,
+            .errorMessage = "",
+        };
+    }
+
+    // Standalone mode: no centralized backend URL configured -> evaluate directly from public evidence & rules
+    if (!hasCustomBackend) {
+        if (!allowDirectFallback) {
+            if (cachedLookup.has_value()) {
+                SongRightsRecord staleCopy = cachedLookup->record;
+                staleCopy.isStale = true;
+                co_return ClientResolveOutcome{
+                    .ok = true,
+                    .servedFromOfflineFallback = true,
+                    .record = std::move(staleCopy),
+                    .errorMessage = "No Backend API URL configured and standalone inspector is disabled.",
+                };
+            }
+            co_return ClientResolveOutcome{
+                .ok = false,
+                .servedFromOfflineFallback = false,
+                .record = std::nullopt,
+                .errorMessage = "Configure a Backend API URL or enable Standalone Direct Source Inspector in Mod Settings.",
+            };
+        }
+
+        SongRightsRecord directRec = co_await inspectDirectlyCoroutine(query, timeoutSec);
+        cachePtr->put(clientKey, directRec, currentUnixSeconds());
+        (void)cachePtr->saveToDisk();
+        co_return ClientResolveOutcome{
+            .ok = true,
+            .servedFromOfflineFallback = false,
+            .record = std::move(directRec),
             .errorMessage = "",
         };
     }
@@ -104,30 +237,41 @@ arc::Future<ClientResolveOutcome> performResolveCoroutine(
         };
     }
 
-    const std::string resolveEndpoint = stripTrailingSlash(baseUrl) + "/songs/resolve";
+    const std::string resolveEndpoint = baseUrl + "/songs/resolve";
     const std::string payload = serializeResolveRequest(query, true, forceRefresh);
 
     geode::utils::web::WebRequest req;
     req.timeout(std::chrono::seconds(timeoutSec))
-        .userAgent("MusicRightsChecker-Geode/0.1.0")
+        .userAgent("MusicRightsChecker-Geode/0.1.1")
         .header("Content-Type", "application/json")
         .header("Accept", "application/json")
         .bodyString(payload);
 
     geode::utils::web::WebResponse resp = co_await req.post(resolveEndpoint);
 
-    auto fallbackOrError = [&](std::string errMsg) -> ClientResolveOutcome {
+    auto fallbackToCacheOrDirect = [&](std::string errMsg) -> arc::Future<ClientResolveOutcome> {
         if (cachedLookup.has_value()) {
             SongRightsRecord fallbackRec = cachedLookup->record;
             fallbackRec.isStale = true;
-            return ClientResolveOutcome{
+            co_return ClientResolveOutcome{
                 .ok = true,
                 .servedFromOfflineFallback = true,
                 .record = std::move(fallbackRec),
                 .errorMessage = std::move(errMsg),
             };
         }
-        return ClientResolveOutcome{
+        if (allowDirectFallback) {
+            SongRightsRecord directRec = co_await inspectDirectlyCoroutine(query, timeoutSec);
+            cachePtr->put(clientKey, directRec, currentUnixSeconds());
+            (void)cachePtr->saveToDisk();
+            co_return ClientResolveOutcome{
+                .ok = true,
+                .servedFromOfflineFallback = false,
+                .record = std::move(directRec),
+                .errorMessage = "Centralized backend unreachable (" + errMsg + "); evaluated via built-in direct inspector.",
+            };
+        }
+        co_return ClientResolveOutcome{
             .ok = false,
             .servedFromOfflineFallback = false,
             .record = std::nullopt,
@@ -140,17 +284,17 @@ arc::Future<ClientResolveOutcome> performResolveCoroutine(
         if (!resp.errorMessage().empty()) {
             msg += ": " + std::string(resp.errorMessage());
         }
-        co_return fallbackOrError(std::move(msg));
+        co_return co_await fallbackToCacheOrDirect(std::move(msg));
     }
 
     auto bodyStrRes = resp.string();
     if (!bodyStrRes.isOk()) {
-        co_return fallbackOrError("Failed to decode UTF-8 response from backend");
+        co_return co_await fallbackToCacheOrDirect("Failed to decode UTF-8 response from backend");
     }
 
     auto parsedRes = parseResolveResponse(bodyStrRes.unwrap());
     if (!parsedRes.has_value()) {
-        co_return fallbackOrError("Invalid backend JSON payload: " + parsedRes.error());
+        co_return co_await fallbackToCacheOrDirect("Invalid backend JSON payload: " + parsedRes.error());
     }
 
     if (parsedRes->resolutionStatus == "ready" && parsedRes->record.has_value()) {
@@ -164,9 +308,8 @@ arc::Future<ClientResolveOutcome> performResolveCoroutine(
         };
     }
 
-    // Handle 202 Accepted asynchronous job polling with bounded exponential backoff
     if (parsedRes->resolutionStatus == "processing" && !parsedRes->jobId.empty()) {
-        const std::string jobEndpoint = stripTrailingSlash(baseUrl) + "/jobs/" + parsedRes->jobId;
+        const std::string jobEndpoint = baseUrl + "/jobs/" + parsedRes->jobId;
         std::uint64_t delayMs = 900;
         for (int attempt = 0; attempt < 6; ++attempt) {
             co_await arc::sleep(asp::Duration::fromMillis(delayMs));
@@ -174,7 +317,7 @@ arc::Future<ClientResolveOutcome> performResolveCoroutine(
 
             geode::utils::web::WebRequest pollReq;
             pollReq.timeout(std::chrono::seconds(timeoutSec))
-                .userAgent("MusicRightsChecker-Geode/0.1.0")
+                .userAgent("MusicRightsChecker-Geode/0.1.1")
                 .header("Accept", "application/json");
 
             geode::utils::web::WebResponse pollResp = co_await pollReq.get(jobEndpoint);
@@ -210,13 +353,13 @@ arc::Future<ClientResolveOutcome> performResolveCoroutine(
             if (jobState == "failed") {
                 const std::string detail =
                     pollJson->find("error_message") ? pollJson->find("error_message")->asString() : "Job failed";
-                co_return fallbackOrError("Background rights research failed: " + detail);
+                co_return co_await fallbackToCacheOrDirect("Background rights research failed: " + detail);
             }
         }
-        co_return fallbackOrError("Rights research is still queued on the server; try refreshing shortly.");
+        co_return co_await fallbackToCacheOrDirect("Rights research is still queued on the server.");
     }
 
-    co_return fallbackOrError("Backend returned neither a completed record nor a valid job ID.");
+    co_return co_await fallbackToCacheOrDirect("Backend returned neither a completed record nor a valid job ID.");
 }
 
 }  // namespace
@@ -254,6 +397,10 @@ bool BackendClient::isModEnabled() const {
     return geode::Mod::get()->getSettingValue<bool>("enabled");
 }
 
+bool BackendClient::isDirectFallbackEnabled() const {
+    return geode::Mod::get()->getSettingValue<bool>("direct-fallback-enabled");
+}
+
 bool BackendClient::shouldAutoCheckSongs() const {
     return geode::Mod::get()->getSettingValue<bool>("auto-check-songs");
 }
@@ -273,6 +420,7 @@ void BackendClient::resolveSongRights(
             std::move(query),
             forceRefresh,
             shouldShareLocalFileHash(),
+            isDirectFallbackEnabled(),
             configuredBaseUrl(),
             configuredTimeoutSeconds(),
             m_cache.get()
@@ -289,28 +437,29 @@ void BackendClient::submitReviewReport(
     std::string evidenceUrl,
     std::function<void(geode::Result<std::string>)> onComplete
 ) {
-    const std::string baseUrl = configuredBaseUrl();
+    const std::string baseUrl = stripTrailingSlash(configuredBaseUrl());
     const int timeoutSec = configuredTimeoutSeconds();
 
     holder.spawn(
         [baseUrl, timeoutSec, songId = std::move(songId), reason = std::move(reason),
          details = std::move(details), evidenceUrl = std::move(evidenceUrl)]()
             -> arc::Future<geode::Result<std::string>> {
-            if (!isSafeBackendBaseUrl(baseUrl)) {
-                co_return geode::Err("Configured Backend API URL is invalid or insecure.");
+            if (isUnconfiguredOrPlaceholderBackendUrl(baseUrl) || !isSafeBackendBaseUrl(baseUrl)) {
+                co_return geode::Err("Configure a centralized Backend API URL in Mod Settings to submit server reports.");
             }
-            const std::string endpoint = stripTrailingSlash(baseUrl) + "/reviews/reports";
+            const std::string endpoint = baseUrl + "/reviews/reports";
             const std::string body = serializeReviewReportRequest(
                 songId,
                 reason,
                 details,
                 "",
-                evidenceUrl
+                evidenceUrl,
+                "mrc.music_rights_checker/0.1.1"
             );
 
             geode::utils::web::WebRequest req;
             req.timeout(std::chrono::seconds(timeoutSec))
-                .userAgent("MusicRightsChecker-Geode/0.1.0")
+                .userAgent("MusicRightsChecker-Geode/0.1.1")
                 .header("Content-Type", "application/json")
                 .header("Accept", "application/json")
                 .bodyString(body);
@@ -330,7 +479,7 @@ void BackendClient::searchSongs(
     LocalSearchFilter filter,
     std::function<void(std::vector<SongRightsRecord>, bool offlineFallback)> onComplete
 ) {
-    const std::string baseUrl = configuredBaseUrl();
+    const std::string baseUrl = stripTrailingSlash(configuredBaseUrl());
     const int timeoutSec = configuredTimeoutSeconds();
     LocalRightsCache* cachePtr = m_cache.get();
 
@@ -339,15 +488,15 @@ void BackendClient::searchSongs(
     holder.spawn(
         [baseUrl, timeoutSec, filter, cachePtr, usedFallbackFlag]()
             -> arc::Future<std::vector<SongRightsRecord>> {
-            if (!isSafeBackendBaseUrl(baseUrl)) {
+            if (isUnconfiguredOrPlaceholderBackendUrl(baseUrl) || !isSafeBackendBaseUrl(baseUrl)) {
                 *usedFallbackFlag = true;
                 co_return cachePtr->search(filter, currentUnixSeconds());
             }
 
-            const std::string endpoint = stripTrailingSlash(baseUrl) + "/songs";
+            const std::string endpoint = baseUrl + "/songs";
             geode::utils::web::WebRequest req;
             req.timeout(std::chrono::seconds(timeoutSec))
-                .userAgent("MusicRightsChecker-Geode/0.1.0")
+                .userAgent("MusicRightsChecker-Geode/0.1.1")
                 .header("Accept", "application/json")
                 .param("limit", 40);
 

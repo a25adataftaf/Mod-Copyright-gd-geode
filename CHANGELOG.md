@@ -8,8 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Planned
-- Optional authenticated Newgrounds API / creator-verified OAuth evidence connector for songs whose public pages are blocked by anti-bot challenges on datacenter IPs.
+- Optional authenticated Newgrounds API / creator-verified OAuth evidence connector for songs whose public pages are blocked by anti-bot challenges.
 - Geode v6 / Geometry Dash `2.2091` target verification once Geode v6 reaches stable release.
+
+## [0.1.1] - 2026-11-03
+
+### Added
+- **Standalone Direct Source Inspector (`include/mrc/DirectEvaluator.hpp`, `src/core/DirectEvaluator.cpp`)**:
+  - Works out of the box in Geometry Dash **without requiring a deployed backend server**, while seamlessly prioritizing a centralized Backend API URL whenever configured.
+  - Fetches public Newgrounds (`newgrounds.com/audio/listen/<id>`) and NCS (`ncs.io/<slug>`) pages asynchronously from the client, extracting Creative Commons licences (`CC0`, `CC BY`, `CC BY-SA`, `CC BY-NC`, `CC BY-NC-SA`, `CC BY-ND`, `CC BY-NC-ND`), `All Rights Reserved` notices, and official NCS `#panel-copy2` attribution blocks.
+  - Evaluates RobTop official tracks, Geometry Dash Music Library tracks (including Incompetech / Kevin MacLeod CC BY 4.0 detection), Jukebox Song File Hub / YouTube NONGs, local NONG files, and word-bounded remix/mashup/cover indicators across all 5 platforms (`YouTube`, `TikTok`, `Twitch`, `Instagram`, `Facebook`).
+- **One-Click Cloud Blueprint (`render.yaml`)**: Added Render.com Docker blueprint for optional 1-click deployment of the centralized FastAPI + AI research backend.
+
+### Changed
+- Changed default `"backend-url"` in `mod.json` from the unhosted `https://api.musicrightschecker.org/api/v1` placeholder to `""` (standalone direct inspection by default), and automatically treated legacy `v0.1.0` placeholder URLs as standalone mode so upgraders never hit dead DNS timeouts.
+- Added `"direct-fallback-enabled"` (`default: true`) toggle in `mod.json` settings.
+- Clicking `Report Issue` on standalone direct records opens the repository's GitHub Issues page directly.
 
 ## [0.1.0] - 2026-11-03
 

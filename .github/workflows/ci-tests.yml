@@ -26,6 +26,7 @@ jobs:
             src/core/JsonCodec.cpp \
             src/core/LocalCache.cpp \
             src/core/AttributionAndSafety.cpp \
+            src/core/DirectEvaluator.cpp \
             tests/cpp/test_mrc_core.cpp \
             -o /tmp/mrc_core_tests
           /tmp/mrc_core_tests
@@ -39,6 +40,7 @@ jobs:
             src/core/JsonCodec.cpp \
             src/core/LocalCache.cpp \
             src/core/AttributionAndSafety.cpp \
+            src/core/DirectEvaluator.cpp \
             tests/cpp/test_mrc_core.cpp \
             -o /tmp/mrc_core_tests_asan
           /tmp/mrc_core_tests_asan

@@ -7,6 +7,7 @@
 #include <vector>
 
 #include <mrc/AttributionAndSafety.hpp>
+#include <mrc/DirectEvaluator.hpp>
 #include <mrc/JsonCodec.hpp>
 #include <mrc/LocalCache.hpp>
 #include <mrc/Types.hpp>
@@ -301,6 +302,85 @@ void testUrlSafetyAttributionAndSha256() {
     ++g_passed;
 }
 
+void testDirectStandaloneEvaluator() {
+    // Word-boundary check: "Discovery" must NOT match "cover", while "(Nightcore Cover)" MUST match
+    MRC_EXPECT(!mrc::DirectEvaluator::hasRemixOrMashupSignals("Discovery", "ElectroArtist"));
+    MRC_EXPECT(mrc::DirectEvaluator::hasRemixOrMashupSignals("Faded (Nightcore Cover)", "Uploader"));
+
+    // 1. NCS track with live #panel-copy2 HTML excerpt
+    mrc::SongQuery ncsQuery;
+    ncsQuery.sourceType = mrc::SourceType::NcsLibrary;
+    ncsQuery.gdSongId = 10055555;
+    ncsQuery.title = "Recall";
+    ncsQuery.artist = "Jim Yosef";
+
+    mrc::DirectFetchedPage ncsPage{
+        .url = "https://ncs.io/Recall",
+        .httpStatus = 200,
+        .rawBody = R"(<html><script>evil()</script><body><p class="p-copy" id="panel-copy2">Song: Jim Yosef - Recall [NCS Release]<br>Music provided by NoCopyrightSounds<br>Free Download/Stream: http://ncs.io/Recall</p></body></html>)",
+    };
+
+    auto ncsRec = mrc::DirectEvaluator::evaluate(ncsQuery, ncsPage, "2026-11-03T12:00:00Z");
+    MRC_EXPECT(ncsRec.overallStatus == mrc::OverallStatus::PermittedWithConditions);
+    MRC_EXPECT(ncsRec.platforms.size() == 5);
+    MRC_EXPECT(ncsRec.attributionTemplate.find("Jim Yosef - Recall [NCS Release]") != std::string::npos);
+    MRC_EXPECT(ncsRec.attributionTemplate.find("evil()") == std::string::npos);
+
+    // 2. Newgrounds CC BY-NC-ND must evaluate to Restricted / NotAllowed
+    mrc::SongQuery ngQuery;
+    ngQuery.sourceType = mrc::SourceType::Newgrounds;
+    ngQuery.gdSongId = 467339;
+    ngQuery.title = "At the Speed of Light";
+    ngQuery.artist = "Dimrain47";
+
+    mrc::DirectFetchedPage ngNcNdPage{
+        .url = "https://www.newgrounds.com/audio/listen/467339",
+        .httpStatus = 200,
+        .rawBody = R"(<div class="licensing"><a href="https://creativecommons.org/licenses/by-nc-nd/3.0/">CC BY-NC-ND</a></div>)",
+    };
+    auto ngRestricted = mrc::DirectEvaluator::evaluate(ngQuery, ngNcNdPage, "2026-11-03T12:00:00Z");
+    MRC_EXPECT(ngRestricted.overallStatus == mrc::OverallStatus::Restricted);
+    MRC_EXPECT(ngRestricted.commercialUseStatus == mrc::PermissionLevel::NotAllowed);
+
+    // 3. Newgrounds CC BY 4.0 must evaluate to PermittedWithConditions (or ReviewRequired if remix)
+    mrc::DirectFetchedPage ngCcByPage{
+        .url = "https://www.newgrounds.com/audio/listen/467339",
+        .httpStatus = 200,
+        .rawBody = R"(<a href="https://creativecommons.org/licenses/by/4.0/">Attribution 4.0</a>)",
+    };
+    auto ngPermitted = mrc::DirectEvaluator::evaluate(ngQuery, ngCcByPage, "2026-11-03T12:00:00Z");
+    MRC_EXPECT(ngPermitted.overallStatus == mrc::OverallStatus::PermittedWithConditions);
+    MRC_EXPECT(ngPermitted.attributionRequired);
+
+    // 4. Newgrounds HTTP 403 block must conservatively fall back to Unknown (never Permitted)
+    mrc::DirectFetchedPage ngBlockedPage{
+        .url = "https://www.newgrounds.com/audio/listen/467339",
+        .httpStatus = 403,
+        .rawBody = "Forbidden",
+    };
+    auto ngUnknown = mrc::DirectEvaluator::evaluate(ngQuery, ngBlockedPage, "2026-11-03T12:00:00Z");
+    MRC_EXPECT(ngUnknown.overallStatus == mrc::OverallStatus::Unknown);
+
+    // 5. RobTop Official & Jukebox Hosted NONG
+    mrc::SongQuery robQuery;
+    robQuery.sourceType = mrc::SourceType::RobTopOfficial;
+    robQuery.gdSongId = 14;
+    robQuery.title = "Clubstep";
+    robQuery.artist = "DJ-Nate";
+    auto robRec = mrc::DirectEvaluator::evaluate(robQuery, std::nullopt, "2026-11-03T12:00:00Z");
+    MRC_EXPECT(robRec.overallStatus == mrc::OverallStatus::ReviewRequired);
+    MRC_EXPECT(robRec.platforms.size() == 5);
+
+    mrc::SongQuery sfhQuery;
+    sfhQuery.sourceType = mrc::SourceType::JukeboxHosted;
+    sfhQuery.title = "Wash Over Me";
+    sfhQuery.artist = "glaive";
+    sfhQuery.sourceUrl = "https://api.songfilehub.com/song/abc?download=true";
+    auto sfhRec = mrc::DirectEvaluator::evaluate(sfhQuery, std::nullopt, "2026-11-03T12:00:00Z");
+    MRC_EXPECT(sfhRec.overallStatus == mrc::OverallStatus::Restricted);
+    ++g_passed;
+}
+
 }  // namespace
 
 int main() {
@@ -309,6 +389,7 @@ int main() {
     testJsonParserSecurityAndUnicode();
     testApiCodecAndCacheLifecycle();
     testUrlSafetyAttributionAndSha256();
+    testDirectStandaloneEvaluator();
     std::cout << "All " << g_passed << " C++23 Music Rights Checker core test suites passed.\n";
     return 0;
 }
